@@ -1,0 +1,30 @@
+class A {
+  hello() {
+    print this.name;
+  }
+
+  greet() {
+    this.hello();
+  }
+}
+
+class B < A {
+  hello() {
+    print "B's hello";
+  }
+
+  test() {
+    super.greet();
+  }
+}
+
+class C < B {
+  init(name) {
+    this.name = name;
+  }
+}
+
+var c = C("Sharad");
+c.test();
+// What should this return??
+

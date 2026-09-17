@@ -1,0 +1,10 @@
+class Math {
+  class square(n) {
+    return n * n;
+  }
+}
+
+print Math.square(3);
+
+var n = 3.1;
+print n * 4.5;

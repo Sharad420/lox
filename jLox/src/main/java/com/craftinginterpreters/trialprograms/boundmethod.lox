@@ -1,0 +1,18 @@
+class Thing {
+  getCallback() {
+    fun localFunction() {
+      print this;
+    }
+
+    return localFunction;
+  }
+}
+
+var callback = Thing().getCallback();
+callback();
+
+// Should create a new env at the get expression, binding this to the instance that the method is accessed from, and create a new LoxFunction whose closure is this new env.
+
+
+
+

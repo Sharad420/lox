@@ -1,0 +1,19 @@
+class DevonshireCream {
+    serveOn() {
+        return "Scones";
+    }
+}
+
+class Bagel {}
+var bagel = Bagel();
+print bagel; // Prints "Bagel instance".
+
+print DevonshireCream;
+
+class Bacon {
+    eat() {
+        print "Crunch";
+    }
+}
+
+Bacon().eat();

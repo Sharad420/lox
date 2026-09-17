@@ -1,0 +1,12 @@
+# Java (jlox)
+*.class
+bin/
+
+# C (clox)
+*.o
+*.out
+clox
+build/
+
+# OS files
+.DS_Store

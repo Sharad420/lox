@@ -1,0 +1,15 @@
+class Person {}
+
+print type(123);          // number
+print type("hello");      // string
+print type(true);         // boolean
+print type(nil);          // nil
+print type(clock);        // function
+print type(Person);       // class
+print type(Person());     // instance
+
+print "Enter your name:";
+var name = input();
+print "Hello, " + name;
+
+print 1 + 2;
