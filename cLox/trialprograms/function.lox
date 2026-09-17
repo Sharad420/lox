@@ -1,0 +1,10 @@
+fun areWeHavingItYet() {
+  print "Yes we are!";
+  return 8;
+}
+
+var b = areWeHavingItYet();
+var c = areWeHavingItYet;
+c();
+var a = 7;
+print a + b;

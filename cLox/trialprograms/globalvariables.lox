@@ -1,0 +1,15 @@
+var breakfast = "beignets";
+var beverage = "cafe au lait";
+breakfast = "beignets with " + beverage;
+
+print breakfast;
+
+var switch value = 10;
+var a = 12;
+
+print a;
+
+var x = 1;
+final x = 2; // allowed: x becomes 2, then final
+
+final x = 3; // runtime error

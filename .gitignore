@@ -5,7 +5,6 @@ bin/
 # C (clox)
 *.o
 *.out
-clox
 build/
 
 # OS files

@@ -1,0 +1,4 @@
+- Single pass compiler, because it is simpler to build than a parser and a code generator, especially in C. Both parsing and code generation happen together.
+- The drawbacks are that it does not work well for languages that require context, unlike Lox, which is small and dynamically typed.
+
+- Source code -(Scanner)-> Tokens -(Parser & Code Generator) (Pratt's parsing technique)-> Bytecode -(Virtual Machine)-> Output

@@ -1,0 +1,9 @@
+var a = 10;
+switch (a) {
+    case 10: print "Success";
+    case 15: print 15;
+    default: print "Default";
+    waha: print "waha";
+}
+
+print "end";
