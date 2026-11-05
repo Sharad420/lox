@@ -1,6 +1,6 @@
 final a = 10;
 {
-    final a = 10;
+    final a = 20;
     {
         print a;
         var a = 10;

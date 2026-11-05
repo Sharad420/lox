@@ -1,9 +1,41 @@
-var x = "global";
 fun outer() {
   var x = "outer";
   fun inner() {
     print x;
   }
-  inner();
+  return inner;
 }
-outer();
+var closure = outer();
+
+fun anotherFunction() {
+    var a = "A";
+    var b = "B";
+    var c = "C";
+
+    print a;
+    print b;
+    print c;
+}
+
+anotherFunction();
+
+closure();
+
+
+{
+  var function;
+  var scopeVar = 20;
+  {
+    fun scopeVarusage() {
+      fun printVar() {
+        print scopeVar;
+      }
+      return printVar;
+    }
+    scopeVar = 50;
+    function = scopeVarusage();
+  }
+  function();
+}
+
+

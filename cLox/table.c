@@ -26,8 +26,9 @@ void freeTable(Table *table) {
 // Core of the hash table. Finds an entry and returns a pointer to it. Handles open addressing(linear probing sequence) as well.
 // Load factor ensures there will always be empty buckets.
 // Takes pointer to entry instead of table because it helps during resizing.
+// OPTIMIZATION: Changing % operator with bitwise AND. Taking advantage of the fact that capacity is always a power of 2: The mod can be calculated by divisor & (capacity - 1)
 static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
-    uint32_t index = key->hash % capacity;
+    uint32_t index = key->hash & (capacity - 1);
     Entry* tombstone = NULL;
 
     for(;;) {
@@ -44,7 +45,7 @@ static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
                 return entry;
         }
 
-        index = (index + 1) % capacity; // This modulo handles wrap around while linear probing.
+        index = (index + 1) & (capacity - 1); // This modulo handles wrap around while linear probing.
     }
 }
 
@@ -126,10 +127,11 @@ void tableAddAll(Table *from, Table *to) {
 }
 
 // Checks if the string exists in the internal runtime collection.
+// OPTIMIZATION: Changing % operator with bitwise AND. Taking advantage of the fact that capacity is always a power of 2: The mod can be calculated by divisor & (capacity - 1)
 ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t hash) {
     if (table->count == 0) return NULL;
 
-    uint32_t index = hash % table->capacity;
+    uint32_t index = hash & (table->capacity - 1);
     for (;;) {
         Entry* entry = &table->entries[index];
         if (entry->key == NULL) {
@@ -142,6 +144,26 @@ ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t
                 return entry->key;
             }
 
-        index = (index + 1) % table->capacity;
+        index = (index + 1) & (table->capacity - 1);
+    }
+}
+
+// Frees all unreached strings in the intern table, and clears dangling pointers - after the mark phase.
+void tableRemoveWhite(Table *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry* entry = &table->entries[i];
+        if (entry->key != NULL && !entry->key->obj.isMarked) {
+            tableDelete(table, entry->key);
+        }
+    }
+}
+
+// Marks all the roots in the given table, usually the globals.
+// Marks both the keys and values, since keys are strings managed by the GC too.
+void markTable(Table *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry* entry = &table->entries[i];
+        markObject((Obj*)entry->key);
+        markValue(entry->value);
     }
 }

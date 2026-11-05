@@ -1,0 +1,2 @@
+print "start";      // line 1
+var x = 1 + nil;    // line 2

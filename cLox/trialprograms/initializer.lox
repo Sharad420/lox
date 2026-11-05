@@ -1,0 +1,14 @@
+class CoffeeMaker {
+  init(coffee) {
+    this.coffee = coffee;
+
+    fun brew() {
+      print this.coffee;
+    }
+
+    this.brew = brew;
+  }
+}
+
+var maker = CoffeeMaker("coffee");
+maker.brew();

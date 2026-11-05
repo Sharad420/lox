@@ -6,6 +6,7 @@
 #include "object.h"
 #include "table.h"
 #include "value.h"
+#include <stddef.h>
 #include <stdint.h>
 
 // Caps the height of the CallFrame stack i.e the number of ongoing calls. Consequently caps the value stack relative to that.
@@ -36,7 +37,14 @@ typedef struct {
     Table globals;
     Table finalGlobals;
     Table strings;
+    ObjString* initString;
+    ObjUpvalue* openUpvalues;
+    size_t bytesAllocated;
+    size_t nextGC;
     Obj* objects;
+    int grayCount;
+    int grayCapacity;
+    Obj** grayStack;
 } VM;
 
 // Enum typedef to indicate the result.

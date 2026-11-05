@@ -1,0 +1,45 @@
+class Matrix { 
+    init() {
+        this.a = [1, 1]; 
+        this.b = [1, 1];
+    } 
+    
+    add(mat1, mat2) {
+        this.a = [mat1.a[0] + mat2.a[0], mat1.a[1] + mat2.a[1]];
+        this.b = [mat1.b[0] + mat2.b[0], mat1.b[1] + mat2.b[1]];
+        print("Added 2x2 Matrix");
+    }
+}
+
+var a = Matrix;
+print(a);
+var b = a();
+
+var mat1 = Matrix();
+print(mat1);
+var mat2 = Matrix();
+mat1.add(mat1, mat2);
+
+
+mat1.a = [1, 2, 3, 4];
+mat1.b = [3, 4, 6, 7];
+mat1.c = [5, 6, 7, 8];
+
+mat1.print_ = fun () {
+    print([mat1.a, mat1.b, mat1.c]);
+};
+mat1.print_();
+
+mat1.add = fun (a, b) {
+    print("added all 3");
+};
+
+mat1.add(mat1, mat2);
+
+deleteField(mat1, "add");
+
+mat1.print_();
+mat1.add(mat1, mat2);
+mat1.print_();
+
+

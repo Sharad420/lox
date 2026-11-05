@@ -6,6 +6,7 @@
 #include "chunk.h"
 #include "common.h"
 #include "compiler.h"
+#include "memory.h"
 #include "object.h"
 #include "scanner.h"
 #include "value.h"
@@ -31,7 +32,8 @@ typedef enum {
     PREC_EQUALITY,   // == !=
     PREC_COMPARISON, // < > <= >=
     PREC_TERM,       // + -
-    PREC_FACTOR,     // * /
+    PREC_FACTOR,     // * / %
+    PREC_EXP,        // ** // Exp has higher precedence than factor, but lesser than unary, so -2**2 = 4.
     PREC_UNARY,      // ! -
     PREC_CALL,       // . ()
     PREC_PRIMARY
@@ -53,10 +55,12 @@ typedef struct {
 } ParseRule;
 
 // Struct that holds the token, the depth and the 'finality' of the local variable.
+// Also holds state which informs whether a local variable has been captured by an upvalue.
 // Challenge EDIT: Added support for single assignment local variables.
 typedef struct {
     Token name;
     int depth;
+    bool isCaptured;
     bool isFinal;
 } Local;
 
@@ -70,6 +74,8 @@ typedef struct {
 // Struct that tells the compiler what is being compiled currently. Most of the compiler does not care about this, hence a useful abstraction.
 typedef enum {
     TYPE_FUNCTION, 
+    TYPE_INITIALIZER,
+    TYPE_METHOD,
     TYPE_SCRIPT
 } FunctionType;
 
@@ -92,9 +98,17 @@ typedef struct Compiler {
     int scopeDepth;
 } Compiler;
 
+// Struct to define a class compiler. Contains:
+// Pointer to enclosing class compiler. Flag if the enclosing class contains a superclass.
+typedef struct ClassCompiler {
+    struct ClassCompiler* enclosing;
+    bool hasSuperclass;
+} ClassCompiler;
+
 // Global variable.
 Parser parser;
 Compiler* current = NULL; // Global compiler to store locals.
+ClassCompiler* currentClass = NULL; // Compiler to give information about nearest enclosing class.
 Chunk* compilingChunk;
 
 // Returns the pointer to current chunk.
@@ -197,7 +211,13 @@ static int emitJump(uint8_t instruction) {
 
 // Writes the return to the chunk.
 static void emitReturn() {
-    emitByte(OP_NIL);
+    if (current->type == TYPE_INITIALIZER) {
+        // Get the initialized instance.
+        emitBytes(OP_GET_LOCAL, 0);
+    } else {
+        emitByte(OP_NIL);
+    }
+
     emitByte(OP_RETURN);
 }
 
@@ -249,9 +269,17 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     // Manual creation of an implicit variable that the VM uses. Stores the function associated with this compiler.
     Local* local = &current->locals[current->localCount++];
     local->depth = 0;
-    local->name.start = "";
-    local->name.length = 0;
-    local->isFinal = false;
+    local->isCaptured = false;
+    // If the type is a method, add "this" to local slot 0. The VM will replace the closure with the receiver.
+    if (type != TYPE_FUNCTION) {
+        local->name.start = "this";
+        local->name.length = 4;
+        local->isFinal = true;
+    } else {
+        local->name.start = "";
+        local->name.length = 0;
+        local->isFinal = false;
+    }
 }
 
 // Signals the end of the compilation process, returns an addresss to the function object created by the compiler.
@@ -279,8 +307,21 @@ static void endScope() {
 
     // EDIT: Handles all the pops together as one instruction, instead of multiple OP_POP instructions.
     int numPops = 0;
-    while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scopeDepth) {
-        numPops++;
+    while (current->localCount > 0 
+        && current->locals[current->localCount - 1].depth > current->scopeDepth) {
+
+        Local* local = &current->locals[current->localCount - 1];
+
+        // Slight modification to keep OP_POPN valid.
+        if (local->isCaptured) {
+            if (numPops > 0) {
+                emitBytes(OP_POPN, numPops);
+                numPops = 0;
+            }
+            emitByte(OP_CLOSE_UPVALUE);
+        } else {
+            numPops++;
+        }
         current->localCount--;
     }
     if (numPops > 0) emitBytes(OP_POPN, numPops);
@@ -293,9 +334,10 @@ static void statement();
 static void declaration();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
+static void function(FunctionType type);
 
 
-// Helper function to make a constant and return it's index in the constant pool.
+// Helper function to make an identifier string and return it's index in the constant pool.
 static uint8_t identifierConstant(Token* name) {
     return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
 }
@@ -355,8 +397,10 @@ static int resolveUpvalue(Compiler* compiler, Token* name) {
     if (compiler->enclosing == NULL) return -1;
 
     // Captures the local variable of the immediately enclosing function and creates an upvalue.
+    // Signifies that a local variable has been captured.
     int local = resolveLocal(compiler->enclosing, name);
     if (local != -1) {
+        compiler->enclosing->locals[local].isCaptured = true;
         return addUpvalue(compiler, (uint8_t)local, true);
     }
 
@@ -380,6 +424,7 @@ static void addLocal(Token name, bool isFinal) {
     Local* local = &current->locals[current->localCount++];
     local->name = name;
     local->depth = -1; // Emulates the "uninitialized" state of a local variable declaration.
+    local->isCaptured = false;
     local->isFinal = isFinal;
 }
 
@@ -467,7 +512,11 @@ static void and_(bool canAssign) {
 static void binary(bool canAssign) {
     TokenType operatorType = parser.previous.type;
     ParseRule* rule = getRule(operatorType);
-    parsePrecedence((Precedence)(rule->precedence + 1));
+    if (operatorType == TOKEN_STAR_STAR) {
+        parsePrecedence((Precedence)(rule->precedence)); // Makes exp right associative, i.e 2 ** 3 ** 2 = 2 ** (3 ** 2)
+    } else {
+        parsePrecedence((Precedence)(rule->precedence + 1));
+    }
 
     switch (operatorType) {
         case TOKEN_BANG_EQUAL:    emitBytes(OP_EQUAL, OP_NOT); break;
@@ -480,6 +529,8 @@ static void binary(bool canAssign) {
         case TOKEN_MINUS:         emitByte(OP_SUBTRACT); break;
         case TOKEN_STAR:          emitByte(OP_MULTIPLY); break;
         case TOKEN_SLASH:         emitByte(OP_DIVIDE); break;
+        case TOKEN_MOD:           emitByte(OP_MOD); break;
+        case TOKEN_STAR_STAR:     emitByte(OP_EXP); break;
         default: return; // Unreachable.     
     }
 }
@@ -489,6 +540,67 @@ static void binary(bool canAssign) {
 static void call(bool canAssign) {
     uint8_t argCount = argumentList();
     emitBytes(OP_CALL, argCount);
+}
+
+// Parsing function for getting or setting a property.
+// Dot operator has same precedence as function call.
+// Uses the precedence of the expression being parsed to determine getting or setting.
+// OPTIMIZATION: Fuses the get property and call expression into a single OP_INVOKE instruction.
+static void dot(bool canAssign) {
+    consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
+    uint8_t name = identifierConstant(&parser.previous);
+
+    if (canAssign && match(TOKEN_EQUAL)) {
+        expression();
+        emitBytes(OP_SET_PROPERTY, name);
+    } else if (match(TOKEN_LEFT_PAREN)) {
+        uint8_t argCount = argumentList();
+        emitBytes(OP_INVOKE, name);
+        emitByte(argCount);
+    } else {
+        emitBytes(OP_GET_PROPERTY, name);
+    }
+
+}
+
+// EDIT: Straightforward array indexing.
+static void subscript(bool canAssign) {
+    parsePrecedence(PREC_OR);
+    consume(TOKEN_RIGHT_SQUARE, "Expect ']' after index.");
+
+    if (canAssign && match(TOKEN_EQUAL)) {
+        expression();
+        emitByte(OP_SET_INDEX);
+    } else {
+        emitByte(OP_GET_INDEX);
+    }
+    return;
+}
+
+// EDIT: Parses a list expression. Allows trailing comma.
+static void list(bool canAssign) {
+    int itemCount = 0;
+    if (!check(TOKEN_RIGHT_SQUARE)) {
+        do {
+            if (check(TOKEN_RIGHT_SQUARE)) {
+                // Allows for trailing comma.
+                break;
+            }
+
+            // Does not allow for assignment within the subscript.
+            parsePrecedence(PREC_OR);
+
+            if (itemCount == UINT8_COUNT) {
+                error("Cannot have more than 256 items in a list literal.");
+            }
+            itemCount++;
+        } while(match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_RIGHT_SQUARE, "Expect ']' after a list.");
+
+    emitBytes(OP_LIST, itemCount);
+    return;
 }
 
 // Parsing function for literals.
@@ -566,6 +678,54 @@ static void variable(bool canAssign) {
     namedVariable(parser.previous, canAssign);
 }
 
+// Creates a synthetic token that can be used as an identifier.
+static Token syntheticToken(const char* text) {
+    Token token;
+    token.start = text;
+    token.length = (int)strlen(text);
+    return token;
+}
+
+// Parses a super expression and gets the property.
+// OPTIMIZATION: Invokes a super method directly if a call is present right after super method access.
+// Regulator: "this" is resolved because OP_GET_SUPER needs to bind the instance to the superclass method. "this" may be an upvalue, so resolution required.
+// Regulator: super call is only meaningful inside a method of a class that has a superclass.
+static void super_(bool canAssign) {
+    if (currentClass == NULL) {
+        error("Can't use 'super' outside of a class.");
+    } else if (!currentClass->hasSuperclass) {
+        error("Can't use 'super' in a class with no superclass.");
+    }
+    consume(TOKEN_DOT, "Expect '.' after 'super'.");
+    consume(TOKEN_IDENTIFIER, "Expect superclass method name.");
+    uint8_t name = identifierConstant(&parser.previous);
+
+    namedVariable(syntheticToken("this"), false);
+    if (match(TOKEN_LEFT_PAREN)) {
+        uint8_t argCount = argumentList();
+        namedVariable(syntheticToken("super"), false);
+        emitBytes(OP_SUPER_INVOKE, name);
+        emitByte(argCount);
+    } else {
+        namedVariable(syntheticToken("super"), false);
+        emitBytes(OP_GET_SUPER, name);
+    }
+}
+
+
+// Parsing a this expression.
+static void this_(bool canAssign) {
+    if (currentClass == NULL) {
+        error("Can't use 'this' outside of a class.");
+    }
+    variable(false);
+}
+
+// Parses a lambda expression. The same as funDeclaration, but does not bind it to a name and leaves it on the stack.
+static void lambda(bool canAssign) {
+    function(TYPE_FUNCTION);
+}
+
 // Parsing function for unary negation.
 static void unary(bool canAssign) {
     TokenType operatorType = parser.previous.type;
@@ -585,13 +745,17 @@ ParseRule rules[] = {
     [TOKEN_RIGHT_PAREN]   = {NULL,     NULL,   PREC_NONE},
     [TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_LEFT_SQUARE]   = {list, subscript, PREC_CALL}, // Has same precedence as PREC_CALL. Think about it.
+    [TOKEN_RIGHT_SQUARE]  = {NULL, NULL, PREC_NONE},
     [TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
-    [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_DOT]           = {NULL,     dot,   PREC_CALL},
     [TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
     [TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
     [TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
     [TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
     [TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
+    [TOKEN_MOD]           = {NULL, binary, PREC_FACTOR}, // Mod has same precedence as *, / and is left associative.
+    [TOKEN_STAR_STAR]     = {NULL, binary, PREC_EXP}, // EXP has higher precedence than FACTOR.
     [TOKEN_BANG]          = {unary,     NULL,   PREC_NONE},
     [TOKEN_BANG_EQUAL]    = {NULL,     binary,   PREC_EQUALITY},
     [TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},
@@ -608,14 +772,14 @@ ParseRule rules[] = {
     [TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
     [TOKEN_FALSE]         = {literal,     NULL,   PREC_NONE},
     [TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
-    [TOKEN_FUN]           = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_FUN]           = {lambda,     NULL,   PREC_NONE}, // fun keyword in an expression is a lambda function.
     [TOKEN_IF]            = {NULL,     NULL,   PREC_NONE},
     [TOKEN_NIL]           = {literal,     NULL,   PREC_NONE},
     [TOKEN_OR]            = {NULL,     or_,   PREC_OR},
     [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
     [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
-    [TOKEN_SUPER]         = {NULL,     NULL,   PREC_NONE},
-    [TOKEN_THIS]          = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_SUPER]         = {super_,     NULL,   PREC_NONE},
+    [TOKEN_THIS]          = {this_,     NULL,   PREC_NONE},
     [TOKEN_TRUE]          = {literal,     NULL,   PREC_NONE},
     [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
     [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
@@ -643,6 +807,7 @@ static void parsePrecedence(Precedence precedence) {
     }
 
     // Try for a + b = c * d if confused as to why canAssign field is checked if true. The outer level check ensures context is present.
+    // This control flow is reached only when all other paths are exhausted and TOKEN_EQUAL still hasn't been parsed, which means that the parser is currently at the outermost context which cannot be assigned.
     if (canAssign && match(TOKEN_EQUAL)) {
         error("Invalid assignment target.");
     }
@@ -703,6 +868,75 @@ static void function(FunctionType type) {
         emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
         emitByte(compiler.upvalues[i].index);
     }
+}
+
+// Parses a method declaration. Method needs the name, the closure and the class that holds it.
+static void method() {
+    consume(TOKEN_IDENTIFIER, "Expect method name.");
+
+    uint8_t constant = identifierConstant(&parser.previous);
+
+    FunctionType type = TYPE_METHOD;
+    if (parser.previous.length == 4 && memcmp(parser.previous.start, "init", 4) == 0) {
+        type = TYPE_INITIALIZER;
+    }
+    function(type);
+
+    emitBytes(OP_METHOD, constant);
+}
+
+// Parses a class declaration.
+// Not using parseVariable, because the class name for the runtime object is needed irrespective of whether it is in a lexical scope or not.
+// Compare with function if confused about this declaration.
+// Mutates the class by applying the effect of inheritance, and by adding methods to it.
+static void classDeclaration() {
+    consume(TOKEN_IDENTIFIER, "Expect class name.");
+    Token className = parser.previous;                                          // Get the class name to later push the ObjClass on to the VM stack(Top-level class declaration ends up getting popped off the stack.)
+
+    uint8_t nameConstant = identifierConstant(&parser.previous);
+    declareVariable(false);
+
+    emitBytes(OP_CLASS, nameConstant);
+    defineVariable(nameConstant, false);
+
+    // Assumes that the class is not a subclass.
+    ClassCompiler classCompiler;
+    classCompiler.hasSuperclass = false;
+    classCompiler.enclosing = currentClass;
+    currentClass = &classCompiler;
+
+    if (match(TOKEN_LESS)) {
+        consume(TOKEN_IDENTIFIER, "Expect superclass name.");
+        variable(false);
+
+        if (identifiersEqual(&className, &parser.previous)) {
+            error("A class can't inherit from itself.");
+        }
+
+        // Create a lexical scope to store the "super" variable. Similar to jlox.
+        beginScope();
+        addLocal(syntheticToken("super"), true); // No token space assigned for "super", unlike "this". So synthetic token needed.
+        defineVariable(0, true);
+
+        namedVariable(className, false);
+        emitByte(OP_INHERIT);
+        classCompiler.hasSuperclass = true;
+    }
+
+    namedVariable(className, false);                            // Loads the class back onto the stack.
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+    // Lox has no field declarations.
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
+        method();
+    }
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+    emitByte(OP_POP);  
+    
+    if(classCompiler.hasSuperclass) {
+        endScope();
+    }
+    
+    currentClass = currentClass->enclosing;
 }
 
 
@@ -837,6 +1071,9 @@ static void returnStatement() {
     if (match(TOKEN_SEMICOLON)) {
         emitReturn();
     } else {
+        if (current->type == TYPE_INITIALIZER) {
+            error("Can't return a value from an initializer.");
+        }
         expression();
         consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
         emitByte(OP_RETURN);
@@ -861,11 +1098,15 @@ static void whileStatement() {
 
 
 // Parses the case body until the next 'case' or 'default' occurs.
+// C style semantics, declaration allowed only inside blocks.
 static void caseBody() {
     while (!check(TOKEN_CASE) &&
     !check(TOKEN_DEFAULT) &&
     !check(TOKEN_RIGHT_BRACE) &&
     !check(TOKEN_EOF)) {
+        if (check(TOKEN_VAR) || check(TOKEN_FUN) || check(TOKEN_CLASS) || check(TOKEN_FINAL)) {
+            errorAtCurrent("Declarations in a case body must be inside a block.");
+        } // Catches the error earlier instead of going all the way down to expression().
         statement();
     }
 }
@@ -879,16 +1120,8 @@ static void switchStatement() {
     expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after value expression.");
 
-    // Stored string which does not collide with Lox user.
-    static const char hiddenSwitchName[] = "<switch value>";
-
-    // Manual creation of hidden variable token. String is stored for the duration of compilation.
-    Token hidden = {
-        .type = TOKEN_IDENTIFIER,
-        .start = hiddenSwitchName,
-        .length = sizeof(hiddenSwitchName) - 1,
-        .line = parser.previous.line,
-    };
+    // Creates a synthetic token for the hidden switch variable to add to the lexical scope.
+    Token hidden = syntheticToken("<switchValue>");
 
     // Adds the hidden switch variable to the locals array and resolves it. No popping of expression(), since it is part of a synthetic var declaration.
     addLocal(hidden, true);
@@ -996,7 +1229,9 @@ static void synchronize() {
 // Parses a single declaration.
 // Challenge EDIT: Added support for single assignment variables.
 static void declaration() {
-    if (match(TOKEN_FUN)) {
+    if (match(TOKEN_CLASS)) {
+        classDeclaration();
+    } else if (match(TOKEN_FUN)) {
         funDeclaration();
     } else if (match(TOKEN_VAR)) {
         varDeclaration(false);
@@ -1049,4 +1284,13 @@ ObjFunction* compile(const char* source) {
     }
     ObjFunction* function = endCompiler();
     return parser.hadError ? NULL : function;  
+}
+
+// Marks all the roots the compiler reaches i.e the functions it contains.
+void markCompilerRoots() {
+    Compiler* compiler = current;
+    while (compiler != NULL) {
+        markObject((Obj*)compiler->function);
+        compiler = current->enclosing;
+    }
 }

@@ -1,0 +1,8 @@
+var lines = [];
+var line = input();
+while (line != nil) {
+  appendToList(lines, line);
+  line = input();
+}
+print len(lines);
+print lines[0] + " ... " + lines[len(lines) - 1];

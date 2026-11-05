@@ -46,4 +46,3 @@ int getLine(const LineRunArray* array, int offset) {
     }
     return -1;
 }
-

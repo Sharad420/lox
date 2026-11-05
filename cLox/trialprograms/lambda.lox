@@ -1,0 +1,46 @@
+// Named function
+fun multiply(a, b) {
+    return a * b;
+}
+
+// Lambda assigned to a variable
+var a = fun (a, b) {
+    return a + b;
+};
+
+// Named function using a lambda
+fun createMultiplier(factor) {
+    return fun (x) {
+        return x * factor;
+    };
+}
+
+// Closure returned from named function
+var double = createMultiplier(2);
+
+// Lambda capturing an enclosing variable
+fun makeCounter() {
+    var count = 0;
+
+    var increment = fun () {
+        count = count + 1;
+        return count;
+    };
+
+    return increment;
+}
+
+var counter = makeCounter();
+
+// Immediately invoked lambda
+var result = fun (x) {
+    return x * x;
+}(5);
+
+// Test everything
+print multiply(3, 4);  // 12
+print add(10, 20);      // 30
+print double(15);      // 30
+print counter();       // 1
+print counter();       // 2
+print result;          // 25

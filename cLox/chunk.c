@@ -5,6 +5,7 @@
 #include "line.h"
 #include "memory.h"
 #include "value.h"
+#include "vm.h"
 
 // Array is empty at initialization.
 void initChunk(Chunk *chunk) {
@@ -50,6 +51,9 @@ int addConstant(Chunk *chunk, Value value) {
         }
     }
     
+    // Push the value onto the VM stack for GC to mark. Else the only reference is on the C stack which the GC does not traverse.
+    push(value);
     writeValueArray(&chunk->constants, value);
+    pop();
     return chunk->constants.count - 1;
 }

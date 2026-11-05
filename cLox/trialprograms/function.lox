@@ -8,3 +8,14 @@ var c = areWeHavingItYet;
 c();
 var a = 7;
 print a + b;
+
+var a = clock();
+print a;
+
+
+fun clock() {
+  return 8;
+}
+
+var b = clock();
+print b;

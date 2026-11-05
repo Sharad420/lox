@@ -229,6 +229,8 @@ Token scanToken() {
         case ')' : return makeToken(TOKEN_RIGHT_PAREN);
         case '{' : return makeToken(TOKEN_LEFT_BRACE);
         case '}' : return makeToken(TOKEN_RIGHT_BRACE);
+        case '[': return makeToken(TOKEN_LEFT_SQUARE);
+        case ']': return makeToken(TOKEN_RIGHT_SQUARE);
         case ';' : return makeToken(TOKEN_SEMICOLON);
         case ':' : return makeToken(TOKEN_COLON);
         case ',' : return makeToken(TOKEN_COMMA);
@@ -236,7 +238,11 @@ Token scanToken() {
         case '-' : return makeToken(TOKEN_MINUS);
         case '+' : return makeToken(TOKEN_PLUS);
         case '/' : return makeToken(TOKEN_SLASH);
-        case '*' : return makeToken(TOKEN_STAR);
+        case '%' : return makeToken(TOKEN_MOD);
+        case '*' : 
+            return makeToken(
+                match('*') ? TOKEN_STAR_STAR : TOKEN_STAR
+            );
         case '!' : 
             return makeToken(
                 match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG

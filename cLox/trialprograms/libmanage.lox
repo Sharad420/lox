@@ -1,0 +1,147 @@
+
+class Book {
+    init(title, author, available) {
+        this.title = title;
+        this.author = author;
+        this.available = available;
+    }
+
+    borrow() {
+        if (!this.available) {
+            print "Book already borrowed.";
+            return false;
+        }
+
+        this.available = false;
+        return true;
+    }
+
+    returnBook() {
+        this.available = true;
+    }
+
+    describe() {
+        print this.title;
+        print this.author;
+        print this.available;
+    }
+}
+
+class ReferenceBook < Book {
+    init(title, author, available, subject) {
+        super.init(title, author, available);
+        this.subject = subject;
+    }
+
+    borrow() {
+        print "Reference books cannot be borrowed.";
+        return false;
+    }
+}
+
+class Member {
+    init(name) {
+        this.name = name;
+        this.borrowed = [];
+        this.borrowedCount = 0;
+    }
+
+    borrowBook(book) {
+        if (book.borrow()) {
+            appendToList(this.borrowed, book);
+            this.borrowedCount = this.borrowedCount + 1;
+            print this.name + " borrowed " + book.title;
+        }
+    }
+
+    returnBook(index) {
+        if (index < 0 or index >= this.borrowedCount) {
+            print "Invalid index.";
+            return;
+        }
+
+        var book = this.borrowed[index];
+        book.returnBook();
+
+        deleteFromList(this.borrowed, index);
+        this.borrowedCount = this.borrowedCount - 1;
+    }
+
+    showBorrowed() {
+        print "Books borrowed by:";
+        print this.name;
+
+        for (var i = 0; i < this.borrowedCount; i = i + 1) {
+            print this.borrowed[i].title;
+        }
+    }
+}
+
+// Library inventory
+var books = [
+    Book("Crafting Interpreters", "Robert Nystrom", true),
+    Book("The C Programming Language", "Kernighan and Ritchie", true),
+    Book("Structure and Interpretation of Computer Programs", "Abelson and Sussman", true),
+    ReferenceBook("Computer Architecture", "Patterson", true, "Engineering")
+];
+
+var bookCount = 4;
+
+var member = Member("Alex");
+
+// Borrow books
+member.borrowBook(books[0]);
+member.borrowBook(books[1]);
+member.borrowBook(books[3]);
+
+member.showBorrowed();
+
+// Return a book
+member.returnBook(0);
+
+print "After returning a book:";
+member.showBorrowed();
+
+// Closure capturing a search term
+fun makeSearch(term) {
+    return fun (book) {
+        return book.title == term;
+    };
+}
+
+var search = makeSearch("Crafting Interpreters");
+
+print "Search results:";
+
+for (var i = 0; i < bookCount; i = i + 1) {
+    if (search(books[i])) {
+        books[i].describe();
+    }
+}
+
+// Lambda and type inspection
+var isAvailable = fun (book) {
+    return book.available;
+};
+
+print "Availability:";
+
+for (var i = 0; i < bookCount; i = i + 1) {
+    print isAvailable(books[i]);
+}
+
+// Type inspection
+print "Types:";
+print type(member);
+print type(books);
+print type(books[0]);
+print type(search);
+
+// Nested lists
+var shelves = [
+    [books[0], books[1]],
+    [books[2], books[3]]
+];
+
+print "Library shelves:";
+print shelves;

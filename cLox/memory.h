@@ -2,6 +2,7 @@
 #define clox_memory_h
 
 #include "common.h"
+#include "value.h"
 
 // Macro to allocate memory. NULL tells realloc to assign a new block of memory.
 #define ALLOCATE(type, count) \
@@ -26,6 +27,10 @@
 // void* signifies it takes in a pointer of unspecified type. This means that pointer arithmatic cannot be performed because reallocate is unaware of what type it is.
 // This is why GROW_ARRAY immediately typecasts is back.
 void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+
+void markValue(Value value);
+void markObject(Obj* object);
+void collectGarbage();
 
 void freeObjects();
 

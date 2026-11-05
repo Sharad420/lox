@@ -1,0 +1,74 @@
+// 1. List creation and printing
+var numbers = [10, 20, 30, 40, 50];
+print numbers;
+
+// 2. Indexing
+print numbers[0];
+print numbers[2];
+print numbers[4];
+
+// 3. Indexed assignment
+numbers[0] = 100;
+numbers[2] = 300;
+print numbers;
+
+// 4. Append
+appendToList(numbers, 60);
+appendToList(numbers, 70);
+print numbers;
+
+// 5. Delete
+deleteFromList(numbers, 0);
+print numbers;
+
+deleteFromList(numbers, 2);
+print numbers;
+
+// 6. Mixed types
+var mixed = [42, "hello", true, nil, numbers];
+print mixed;
+
+// 7. Nested lists
+var matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+];
+
+print matrix[1][2];
+matrix[0][0] = 99;
+print matrix;
+
+// 8. Aliasing
+var a = [1, 2, 3];
+var b = a;
+
+appendToList(b, 4);
+print a;
+
+// 9. Lists inside functions
+fun modify(list) {
+    appendToList(list, 100);
+    list[0] = 999;
+}
+
+modify(a);
+print a;
+
+// 10. Lists with loops
+var values = [];
+
+for (var i = 0; i < 5; i = i + 1) {
+    appendToList(values, i * i);
+}
+
+print values;
+
+// 11. Expression evaluation inside indices
+var index = 2;
+print values[index + 1];
+
+var a = [];
+appendToList(a, a);
+appendToList(a, 1);
+print(a);

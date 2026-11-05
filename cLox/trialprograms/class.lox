@@ -1,0 +1,19 @@
+class Pair {
+}
+
+var pair = Pair();
+
+pair.first = 5;
+print getField(pair, "first"); // 5
+print hasField(pair, "first"); // true
+
+print deleteField(pair, "first"); // true
+print hasField(pair, "first"); // false
+
+print setField(pair, "sec" + "ond", 10); // 10
+print getField(pair, "second"); // 10
+print hasField(pair, "second"); // true
+print deleteField(pair, "second"); // true
+print hasField(pair, "second"); // false
+
+

@@ -26,6 +26,9 @@ typedef enum {
     // No <=, >= opcodes because they can be desugared by =, <, > & !.
     OP_GET_UPVALUE,
     OP_SET_UPVALUE,
+    OP_GET_PROPERTY,
+    OP_SET_PROPERTY,
+    OP_GET_SUPER,
     OP_EQUAL,
     OP_GREATER,
     OP_LESS,
@@ -33,18 +36,30 @@ typedef enum {
     OP_SUBTRACT,
     OP_MULTIPLY,
     OP_DIVIDE,
+    OP_MOD,
+    OP_EXP,
     OP_NOT,
     OP_NEGATE,
     OP_PRINT,
     OP_JUMP,
     OP_JUMP_IF_FALSE,
     OP_LOOP,
+    OP_LIST,
+    OP_GET_INDEX,
+    OP_SET_INDEX,
     OP_CALL,
+    OP_INVOKE,
+    OP_SUPER_INVOKE,
     OP_CLOSURE,
+    OP_CLOSE_UPVALUE,
     OP_RETURN,
+    OP_CLASS,
+    OP_INHERIT,
+    OP_METHOD,
 } OpCode;
 
-// Dynamic array to hold the bytecode.
+// Array to hold the bytecode.
+// Dynamic arrays to hold constants and line run information.
 // Amortized time for appending elements to the array is O(1). Remember 6.006?
 typedef struct {
     int count;

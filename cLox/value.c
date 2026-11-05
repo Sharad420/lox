@@ -31,7 +31,19 @@ void writeValueArray(ValueArray *array, Value value) {
 }
 
 // Prints the value found.
+// EDIT: Works with NaN boxed values too.
 void printValue(Value value) {
+#ifdef NAN_BOXING
+    if (IS_BOOL(value)) {
+        printf(AS_BOOL(value) ? "true" : "false");
+    } else if (IS_NIL(value)) {
+        printf("nil");
+    } else if (IS_NUMBER(value)) {
+        printf("%g", AS_NUMBER(value));
+    } else if (IS_OBJ(value)) {
+        printObject(value);
+    }
+#else
     switch (value.type) {
         case VAL_BOOL:
             printf(AS_BOOL(value) ? "true" : "false");
@@ -43,18 +55,26 @@ void printValue(Value value) {
             break;
         case VAL_OBJ: printObject(value); break;
     }
-
+#endif
 }
 
 // Checks equality of any 2 Values, even of different types.
 bool valuesEqual(Value a, Value b) {
+#ifdef NAN_BOXING
+    if (IS_NUMBER(a) && IS_NUMBER(b)) {
+        // To handle IEEE 754's signalling NaN shenanigans. Sacrifices a little bit of performance.
+        return AS_NUMBER(a) == AS_NUMBER(b);
+    }
+    return a == b; // If the bit representations are equal, the values are equal.
+#else
     if (a.type != b.type) return false;
     switch (a.type) {
         case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
         case VAL_NIL:    return true;
-        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b); // Learning: This works even though IEEE 754 specifies that signalling NaN values are not equal to themselves. THe C compiler handles this because it KNOWS the values are doubles and hence has it's own sidestep to this problem.
         // Interning of objects allows for pointer comparision.
         case VAL_OBJ:    return AS_OBJ(a) == AS_OBJ(b);
         default:         return false; // Unreachable
     }
+#endif
 }
