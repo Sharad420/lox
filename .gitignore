@@ -1,11 +1,32 @@
-# Java (jlox)
-*.class
-bin/
-
-# C (clox)
+# Object files
 *.o
-*.out
-build/
+*.obj
 
-# OS files
+# Debug symbols and profiling
+*.dSYM/
+*.profraw
+*.profdata
+gmon.out
+*.gcda
+*.gcno
+
+# Build directories
+build/
+dist/
+
+# macOS
 .DS_Store
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.log
+
+# Core dumps
+core
+core.*
