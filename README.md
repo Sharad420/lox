@@ -54,12 +54,13 @@ Beyond the book:
 
 ```sh
 cd clox
-make
-./clox             # REPL
-./clox script.lox  # run a file
+cmake -B build
+cmake --build build
+./build/clox             # REPL
+./build/clox script.lox  # run a file
 ```
 
-On Linux, link with `-lm` for `fmod` and `pow`.
+Debug builds: add `-DCLOX_STRESS_GC=ON`, `-DCLOX_LOG_GC=ON`, `-DCLOX_TRACE=ON`, `-DCLOX_PRINT_CODE=ON` or `-DCLOX_SANITIZE=ON` to the first command. Use a separate build folder for each, e.g. `-B build-debug`.
 
 **jlox:**
 
